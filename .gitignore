@@ -1,0 +1,10 @@
+node_modules/
+lib/
+*.tsbuildinfo
+*.log
+.DS_Store
+
+# 会话工具 / 图像生成产物（非源码）
+.dsh-vision-toolkit/
+generate/
+
