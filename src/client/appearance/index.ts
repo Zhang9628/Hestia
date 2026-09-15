@@ -1,6 +1,6 @@
 /**
  * 「外观」面板：会话页头部的入口按钮 + 弹出面板。
- * 面板内分三组：宽度（width）/ 字号（font）/ 皮肤（skin）。面板始终挂载、仅用 CSS 隐藏，
+ * 面板内分四组：宽度（width）/ 字号（font）/ 壁纸（background）/ 皮肤（skin）。面板始终挂载、仅用 CSS 隐藏，
  * 关闭弹层后控件及其动态 style 标签仍在，改动持续生效。
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
@@ -9,6 +9,7 @@ import type { HestiaThemeService } from '../theme'
 import { ChatWidthControl } from './width'
 import { FontSizeControl } from './font'
 import { SkinControl } from './skin'
+import { BackgroundImageControl } from './background'
 
 /** 「外观」入口图标：lucide sliders-horizontal，单笔 2px 描边。 */
 function SlidersIcon(): React.ReactElement {
@@ -35,7 +36,7 @@ function Group(props: React.PropsWithChildren<{ label: string }>): React.ReactEl
   )
 }
 
-/** 单个「外观」入口按钮 + 弹出面板（宽度 / 字号 / 主题三组）。 */
+/** 单个「外观」入口按钮 + 弹出面板（宽度 / 字号 / 壁纸 / 皮肤四组）。 */
 export function AppearancePopover(props: { theme: HestiaThemeService | undefined; ctx: ClientContext }): React.ReactElement {
   const { theme, ctx } = props
   const [open, setOpen] = React.useState(false)
@@ -65,7 +66,7 @@ export function AppearancePopover(props: { theme: HestiaThemeService | undefined
       className: 'dshwc-popTrigger' + (open ? ' dshwc-popTriggerOpen' : ''),
       'aria-expanded': open,
       'aria-haspopup': 'dialog',
-      title: '外观设置（宽度 / 字号 / 主题）',
+      title: '外观设置（宽度 / 字号 / 壁纸 / 皮肤）',
       onClick: () => setOpen((v) => !v),
     },
     React.createElement(SlidersIcon),
@@ -80,6 +81,7 @@ export function AppearancePopover(props: { theme: HestiaThemeService | undefined
   },
     React.createElement(Group, { label: '宽度' }, React.createElement(ChatWidthControl)),
     React.createElement(Group, { label: '字号' }, React.createElement(FontSizeControl)),
+    React.createElement(Group, { label: '壁纸' }, React.createElement(BackgroundImageControl)),
     React.createElement(Group, { label: '皮肤' }, React.createElement(SkinControl, { theme, ctx })),
   )
 
