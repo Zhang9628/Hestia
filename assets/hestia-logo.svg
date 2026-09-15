@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="3522" height="1024" viewBox="0 0 3522 1024">
+  <defs>
+    <clipPath id="rc"><rect x="0" y="0" width="1024" height="1024" rx="44" ry="44"/></clipPath>
+  </defs>
+  <image xlink:href="hestia-icon.png" x="0" y="0" width="1024" height="1024" clip-path="url(#rc)"/>
+  <text x="1269" y="794" font-family="'Liberation Sans','Arial',sans-serif" font-weight="bold" font-size="766" fill="#01323E">Hestia</text>
+</svg>

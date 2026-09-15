@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/hestia-icon.png" width="88" height="88" alt="Hestia logo" />
+  <img src="assets/hestia-logo.png" width="360" alt="Hestia logo" />
   <h1>Hestia · DeepSeek Harness Session Enhancement Plugin</h1>
   <p><strong>Make your AI conversation interface smoother and more comfortable.</strong><br>Conversation width · Fonts · Skins · Wallpapers · Pomodoro timer · Session navigation</p>
   <p><a href="README.zh.md">简体中文</a> · <strong>English</strong></p>

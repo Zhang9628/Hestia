@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/hestia-icon.png" width="88" height="88" alt="Hestia logo" />
+  <img src="assets/hestia-logo.png" width="360" alt="Hestia logo" />
   <h1>Hestia · DeepSeek Harness 会话增强插件</h1>
   <p><strong>让你的 AI 会话界面更顺手、更舒适。</strong><br>对话宽度 · 字体 · 皮肤 · 壁纸 · 番茄时钟 · 会话导航</p>
   <p><strong>简体中文</strong> · <a href="README.md">English</a></p>
