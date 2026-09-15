@@ -253,17 +253,83 @@ class ConversationNavController {
   /**
    * 跳到「最最开头」：先反复点击「加载更早」把更早历史全部载入（否则顶部只显示
    * 「加载更早」按钮而非第一条消息），再平滑滚到顶。安全上限防止死循环。
+   *
+   * 速度优化：不再每点一次固定空等 320ms，而是等「这一页真正加载完」就立刻点下一次。
+   * 用 MutationObserver 监听「加载更早」按钮的 disabled 属性（对应 session 的
+   * loadingOlder 状态），disabled 消失或按钮消失（hasMore=false）即视为完成，
+   * 把固定空等压缩成「实际加载耗时」。
    */
   private async jumpToVeryTop(): Promise<void> {
     const scroller = this.scroller()
     if (scroller === null) return
     for (let i = 0; i < 300; i++) {
       const btn = this.findOlderButton(scroller)
-      if (btn === null) break
-      if (!btn.disabled) btn.click()
-      await new Promise((resolve) => setTimeout(resolve, 320))
+      if (btn === null) break // 没有更多历史，已到最开头
+      if (btn.disabled) {
+        // 上一次点击仍在加载（如用户刚手动点过「加载更早」），等它结束再继续。
+        await this.waitForOlderPage(scroller)
+        continue
+      }
+      btn.click()
+      await this.waitForOlderPage(scroller)
     }
+
+    // 加载更早历史会让 column 变高，shell 的 ResizeObserver 若判定用户「仍在底部」
+    // （followRef 里 scrollTop = scrollHeight）会在下一帧把滚动抢回底部，导致第一次点击
+    // 白点、要再点一次。这里等一帧渲染周期让 shell 的「跟底」逻辑 settle 后再滚，
+    // 保证一次点击即到顶（一次性 80ms，非每页都等）。
+    await new Promise((resolve) => setTimeout(resolve, 80))
     scroller.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  /**
+   * 等待一轮「加载更早」真正结束：先看到按钮进入 loading（disabled），
+   * 再看到它回到可点（enabled）或整体消失（hasMore 变 false）。
+   * 用 MutationObserver 驱动（无固定空等），带超时兜底防止卡死。
+   */
+  private waitForOlderPage(scroller: HTMLElement, timeoutMs = 8000): Promise<void> {
+    return new Promise((resolve) => {
+      let settled = false
+      let sawLoading = false
+      let observer: MutationObserver | null = null
+      let timer = 0
+
+      const settle = (): void => {
+        if (settled) return
+        settled = true
+        observer?.disconnect()
+        clearTimeout(timer)
+        resolve()
+      }
+
+      const inspect = (): void => {
+        const btn = this.findOlderButton(scroller)
+        if (btn === null) {
+          settle() // 按钮消失：没有更多历史
+          return
+        }
+        if (btn.disabled) {
+          sawLoading = true // 本页加载已开始
+          return
+        }
+        // 按钮回到可点：若之前见过 loading，说明本页已加载完
+        if (sawLoading) settle()
+      }
+
+      observer = new MutationObserver(inspect)
+      observer.observe(scroller, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['disabled'],
+      })
+
+      timer = setTimeout(settle, timeoutMs)
+
+      // 初次检查：点击后 React 尚未 flush 时按钮仍是 enabled 且 sawLoading=false，
+      // 不会提前 settle；等 disabled 出现→消失后才算真正完成。
+      inspect()
+    })
   }
 
   private findOlderButton(scroller: HTMLElement): HTMLButtonElement | null {
