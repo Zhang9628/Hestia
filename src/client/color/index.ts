@@ -46,15 +46,16 @@ interface HestiaWorkspacesService {
   list: HestiaObservableSnapshot<HestiaWorkspaceListState>
 }
 
-const SESSION_COLOR_KEY = 'hestia-session-colors'
+/** 会话标识颜色 localStorage 键（group 模块「按标识颜色分组」复用同一份色表）。 */
+export const SESSION_COLOR_KEY = 'hestia-session-colors'
 const WORKSPACE_COLOR_KEY = 'hestia-workspace-colors'
 /** 粘性解析：会话 id 暂存在行上，标题被重写/截断时仍可复用（与 pin 模块共用）。 */
 const ROW_ID_ATTR = 'data-hestia-row-id'
 
 type ColorKind = 'session' | 'workspace'
 
-/** 预设标识色（8 色）。 */
-const PRESET_COLORS: ReadonlyArray<{ hex: string; label: string }> = [
+/** 预设标识色（8 色）。group 模块按此顺序归组。 */
+export const PRESET_COLORS: ReadonlyArray<{ hex: string; label: string }> = [
   { hex: '#ef4444', label: '红' },
   { hex: '#f97316', label: '橙' },
   { hex: '#eab308', label: '黄' },

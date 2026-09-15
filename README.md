@@ -58,6 +58,13 @@ Click the "Appearance" button in the session page header to open the settings pa
 - The color bar is always visible; reopen the palette and click "Clear" to remove the color
 - The color mapping is remembered locally and persists after restart
 
+### Group by color
+
+- In the workspace sidebar's **View options → Group by** menu there is a new "By color" entry; selecting it groups the session list by each session's color label (red → orange → … → uncolored), each with a colored group header + count
+- Works regardless of the current grouping mode (it switches the list to a single flat list while active) and restores the previous grouping when turned off
+- The toggle is remembered locally and persists after restart
+
+
 ### Session hover usage (turns + tokens)
 
 - The hover card on a session row now shows an extra usage line under title / time / status: `28 turns · 46.7M tok in · 276K tok out`
@@ -133,6 +140,10 @@ src/
     ├── color/                session color labels
     │   ├── index.ts          ColorController (color table / left color bar / palette)
     │   └── styles.ts         dshcolor-* CSS
+    ├── group/                group-by-color
+    │   ├── index.ts          ColorGroupingController (view-options menu injection / color grouping)
+    │   ├── state.ts          cross-module toggle (defers pin reordering)
+    │   └── styles.ts         dshgroup-* CSS
     ├── usage/                session hover token usage
     │   ├── index.ts          UsageController (read tokenUsage projection / inject hover card)
     │   └── styles.ts         dshusage-* CSS

@@ -1,6 +1,6 @@
 /**
- * dsh-hestia 浏览器半：外观调节（宽度 / 字号 / 皮肤）+ 番茄时钟 + session 置顶/pin + 标识颜色 + 悬停 token 用量 + 会话导航（上箭头 / 时间轴）。
- * 功能按模块拆分在 appearance/、pomodoro/、pin/、color/、usage/、nav/ 下，本文件只做装配：
+ * dsh-hestia 浏览器半：外观调节（宽度 / 字号 / 皮肤）+ 番茄时钟 + session 置顶/pin + 标识颜色 + 按颜色分组 + 悬停 token 用量 + 会话导航（上箭头 / 时间轴）。
+ * 功能按模块拆分在 appearance/、pomodoro/、pin/、color/、group/、usage/、nav/ 下，本文件只做装配：
  * 注入全局 CSS、注册皮肤、挂载两个 slot（外观入口 / 番茄球），并启动列表增强与会话导航。
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
@@ -32,6 +32,7 @@ import { initSkins } from './appearance/skin'
 import { PomodoroBall } from './pomodoro'
 import { initSessionPin } from './pin'
 import { initColorMark } from './color'
+import { initColorGrouping } from './group'
 import { initSessionUsage } from './usage'
 import { initConversationNav } from './nav'
 
@@ -70,6 +71,9 @@ export function apply(ctx: ClientContext): void {
 
   // session / 工作区 标识颜色：订阅 sessions.list + workspaces.list，注入左侧色条 + 颜色按钮/调色板。
   initColorMark(ctx)
+
+  // 按标识颜色分组：在「视图选项 → 分组方式」里注入「按标识颜色」，按会话颜色归组。
+  initColorGrouping(ctx)
 
   // session 悬停信息增强：订阅 sessions.list + 观察 DOM，为会话悬停卡注入 token 用量行（输入/输出 tok）。
   initSessionUsage(ctx)

@@ -6,7 +6,8 @@ import { APPEARANCE_CSS } from './appearance/styles'
 import { POMODORO_CSS } from './pomodoro/styles'
 import { PIN_CSS } from './pin/styles'
 import { COLOR_CSS } from './color/styles'
+import { GROUP_CSS } from './group/styles'
 import { USAGE_CSS } from './usage/styles'
 import { NAV_CSS } from './nav/styles'
 
-export const CSS = APPEARANCE_CSS + POMODORO_CSS + PIN_CSS + COLOR_CSS + USAGE_CSS + NAV_CSS
+export const CSS = APPEARANCE_CSS + POMODORO_CSS + PIN_CSS + COLOR_CSS + GROUP_CSS + USAGE_CSS + NAV_CSS

@@ -58,6 +58,13 @@ Hestia 是一个独立仓库的 [DSH](https://github.com/deepseek-ai/deepseek-ha
 - 色条常显；再次打开调色板点「清除」即可移除颜色
 - 颜色映射记忆在本地，重启后仍生效
 
+### 按标识颜色分组
+
+- 工作区侧栏「视图选项 → 分组方式」菜单里新增「按标识颜色」一项，选中后按每个会话的标识颜色归组（红 → 橙 → … → 未上色），每组带颜色组头 + 数量
+- 与当前分组模式无关（启用时临时切为单列表），关闭后还原原来的分组方式
+- 开关记忆在本地，重启后仍生效
+
+
 ### 会话悬停用量（轮数 + token）
 
 - 鼠标悬停会话行出现的悬停卡，在标题 / 时间 / 状态下方额外展示一行用量：`28 轮 · 输入 46.7M tok · 输出 276K tok`
@@ -133,6 +140,10 @@ src/
     ├── color/                session 标识颜色
     │   ├── index.ts          ColorController（色表 / 左侧色条 / 调色板）
     │   └── styles.ts         dshcolor-* CSS
+    ├── group/                按标识颜色分组
+    │   ├── index.ts          ColorGroupingController（视图选项菜单注入 / 颜色归组）
+    │   ├── state.ts          跨模块开关（让 pin 跳过重排）
+    │   └── styles.ts         dshgroup-* CSS
     ├── usage/                session 悬停 token 用量
     │   ├── index.ts          UsageController（读 tokenUsage 投影 / 注入悬停卡）
     │   └── styles.ts         dshusage-* CSS

@@ -26,6 +26,7 @@
  *   时静默退回纯 DOM 重排。
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import { colorGroupingActive } from '../group/state'
 
 /** 会话列表快照的最小结构视图（运行时由 shell 的 dsh-client-runtime 提供）。 */
 interface HestiaSessionSummary {
@@ -263,6 +264,9 @@ class PinController {
     for (const row of Array.from(document.querySelectorAll('[class*="sessionRow"]'))) {
       this.syncRow(row, titleMap, currentId, validIds)
     }
+
+    // 按标识颜色分组开启时，重排交给 group 模块（否则两者互相打乱对方顺序）。
+    if (colorGroupingActive()) return
 
     this.reorderContainers()
     this.syncStoreOrder(list)
