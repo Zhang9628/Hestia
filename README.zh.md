@@ -5,6 +5,7 @@
   <p><strong>简体中文</strong> · <a href="README.md">English</a></p>
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-d97706" alt="MIT license" /></a>
+    <img src="https://img.shields.io/badge/node-%5E22.18.0%20%7C%7C%20%3E%3D24.11.0-339933" alt="Node.js ^22.18.0 || >=24.11.0" />
   </p>
 </div>
 
