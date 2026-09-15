@@ -48,6 +48,8 @@ interface HestiaWorkspacesService {
 
 const SESSION_COLOR_KEY = 'hestia-session-colors'
 const WORKSPACE_COLOR_KEY = 'hestia-workspace-colors'
+/** 粘性解析：会话 id 暂存在行上，标题被重写/截断时仍可复用（与 pin 模块共用）。 */
+const ROW_ID_ATTR = 'data-hestia-row-id'
 
 type ColorKind = 'session' | 'workspace'
 
@@ -126,14 +128,26 @@ function buildWorkspaceTitleMap(list: HestiaWorkspaceListState): Map<string, str
   return map
 }
 
-/** 会话行 → 会话 id：当前行用 aria-selected 精确定位；其余行要求标题唯一才匹配。 */
-function resolveSessionId(row: Element, titleMap: Map<string, string[]>, currentId: string | undefined): string | undefined {
-  if (row.getAttribute('aria-selected') === 'true' && currentId !== undefined) return currentId
-  const title = rowTitle(row)
-  if (title === '') return undefined
-  const ids = titleMap.get(title)
-  if (ids === undefined || ids.length !== 1) return undefined
-  return ids[0]
+/** 会话行 → 会话 id：优先复用粘性缓存；否则当前行用 aria-selected 精确定位，其余行要求标题唯一才匹配。 */
+function resolveSessionId(row: Element, titleMap: Map<string, string[]>, currentId: string | undefined, validIds: ReadonlySet<string>): string | undefined {
+  // 粘性缓存：React 原地更新（标题被 LLM 重写、fallback 截断等）时，优先用上次解析到的 id。
+  const cached = row.getAttribute(ROW_ID_ATTR)
+  if (cached !== null && cached !== '' && validIds.has(cached)) return cached
+
+  let id: string | undefined
+  if (row.getAttribute('aria-selected') === 'true' && currentId !== undefined) {
+    id = currentId
+  } else {
+    const title = rowTitle(row)
+    if (title !== '') {
+      const ids = titleMap.get(title)
+      if (ids !== undefined && ids.length === 1) id = ids[0]
+    }
+  }
+
+  if (id !== undefined) row.setAttribute(ROW_ID_ATTR, id)
+  else row.removeAttribute(ROW_ID_ATTR)
+  return id
 }
 
 /** 工作区行 → workspaceId（未分组桶的本地化标题不在映射里，自然跳过）。 */
@@ -215,23 +229,24 @@ class ColorController {
     const sessionList = this.sessions.list.getSnapshot()
     const sessionTitleMap = buildSessionTitleMap(sessionList)
     const currentId = sessionList.current
+    const validSessionIds = new Set(sessionList.ids)
     const workspaceList = this.workspaces?.list.getSnapshot()
     const workspaceTitleMap = workspaceList !== undefined ? buildWorkspaceTitleMap(workspaceList) : new Map<string, string[]>()
 
     for (const row of Array.from(document.querySelectorAll('[class*="sessionRow"]'))) {
-      this.syncSessionRow(row as HTMLElement, sessionTitleMap, currentId)
+      this.syncSessionRow(row as HTMLElement, sessionTitleMap, currentId, validSessionIds)
     }
     for (const row of Array.from(document.querySelectorAll('[class*="projectRow"]'))) {
       this.syncWorkspaceRow(row as HTMLElement, workspaceTitleMap)
     }
   }
 
-  private syncSessionRow(row: HTMLElement, titleMap: Map<string, string[]>, currentId: string | undefined): void {
+  private syncSessionRow(row: HTMLElement, titleMap: Map<string, string[]>, currentId: string | undefined, validIds: ReadonlySet<string>): void {
     if (!isRealSessionRow(row)) {
       row.style.boxShadow = ''
       return
     }
-    const id = resolveSessionId(row, titleMap, currentId)
+    const id = resolveSessionId(row, titleMap, currentId, validIds)
     if (id === undefined) {
       row.style.boxShadow = ''
       return

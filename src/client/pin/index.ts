@@ -82,6 +82,8 @@ interface HestiaViewStoreInstance {
 }
 
 const PIN_STORAGE_KEY = 'hestia-pinned-sessions'
+/** 粘性解析：解析过的会话 id 暂存在行上，标题被重写/截断时仍可复用（pin 与 color 共用）。 */
+const ROW_ID_ATTR = 'data-hestia-row-id'
 
 /** 置顶图标（lucide pin，2px 描边；置顶态给「头」上色）。 */
 const PIN_SVG =
@@ -141,14 +143,26 @@ function buildTitleMap(list: HestiaSessionListState): Map<string, string[]> {
   return map
 }
 
-/** 会话行 → id：当前行用 aria-selected 精确定位；其余行要求标题唯一才匹配。 */
-function resolveRowId(row: Element, titleMap: Map<string, string[]>, currentId: string | undefined): string | undefined {
-  if (row.getAttribute('aria-selected') === 'true' && currentId !== undefined) return currentId
-  const title = rowTitle(row)
-  if (title === '') return undefined
-  const ids = titleMap.get(title)
-  if (ids === undefined || ids.length !== 1) return undefined
-  return ids[0]
+/** 会话行 → id：优先复用粘性缓存；否则当前行用 aria-selected 精确定位，其余行要求标题唯一才匹配。 */
+function resolveRowId(row: Element, titleMap: Map<string, string[]>, currentId: string | undefined, validIds: ReadonlySet<string>): string | undefined {
+  // 粘性缓存：React 原地更新（标题被 LLM 重写、fallback 截断等）时，优先用上次解析到的 id。
+  const cached = row.getAttribute(ROW_ID_ATTR)
+  if (cached !== null && cached !== '' && validIds.has(cached)) return cached
+
+  let id: string | undefined
+  if (row.getAttribute('aria-selected') === 'true' && currentId !== undefined) {
+    id = currentId
+  } else {
+    const title = rowTitle(row)
+    if (title !== '') {
+      const ids = titleMap.get(title)
+      if (ids !== undefined && ids.length === 1) id = ids[0]
+    }
+  }
+
+  if (id !== undefined) row.setAttribute(ROW_ID_ATTR, id)
+  else row.removeAttribute(ROW_ID_ATTR)
+  return id
 }
 
 /** 会话行是否可置顶：blank 行没有 rowActions / time，跳过。 */
@@ -198,7 +212,7 @@ class PinController {
   private pinned: Set<string>
   private observer: MutationObserver | null = null
   private unsubscribe: (() => void) | null = null
-  private settleId: number | null = null
+  private rafId: number | null = null
   private storeInstance: HestiaViewStoreInstance | null = null
 
   constructor(sessions: HestiaSessionsService, workspaces: HestiaWorkspacesService | undefined, slots: HestiaSlotsService | undefined) {
@@ -216,9 +230,9 @@ class PinController {
   }
 
   dispose(): void {
-    if (this.settleId !== null) {
-      clearTimeout(this.settleId)
-      this.settleId = null
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId)
+      this.rafId = null
     }
     this.observer?.disconnect()
     this.observer = null
@@ -230,23 +244,24 @@ class PinController {
   }
 
   private schedule(): void {
-    // 防抖：新建会话时 React 会有多波渲染（插入行 → 选中态 → 标题），
-    // 每波都会触发 schedule；只在「最后一波变动后 50ms」跑一次 refresh，
-    // 等 React 稳定后再重排，避免顺序被后续渲染还原。
-    if (this.settleId !== null) clearTimeout(this.settleId)
-    this.settleId = setTimeout(() => {
-      this.settleId = null
+    // 合并（而非防抖）：会话执行时对话区每个 token 都会触发 DOM 变动，若用「重置定时器」
+    // 的防抖，refresh 会被持续刷新的定时器饿死、永远不执行；用 rAF 合并可保证每帧最多
+    // 跑一次 refresh，流式期间也能及时应用置顶状态。
+    if (this.rafId !== null) return
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = null
       this.refresh()
-    }, 50)
+    })
   }
 
   private refresh(): void {
     const list = this.sessions.list.getSnapshot()
     const titleMap = buildTitleMap(list)
     const currentId = list.current
+    const validIds = new Set(list.ids)
 
     for (const row of Array.from(document.querySelectorAll('[class*="sessionRow"]'))) {
-      this.syncRow(row, titleMap, currentId)
+      this.syncRow(row, titleMap, currentId, validIds)
     }
 
     this.reorderContainers()
@@ -254,12 +269,12 @@ class PinController {
   }
 
   /** 为单行注入/更新置顶按钮与置顶标记。 */
-  private syncRow(row: Element, titleMap: Map<string, string[]>, currentId: string | undefined): void {
+  private syncRow(row: Element, titleMap: Map<string, string[]>, currentId: string | undefined, validIds: ReadonlySet<string>): void {
     if (!isPinnableRow(row)) {
       row.removeAttribute('data-hestia-pinned')
       return
     }
-    const id = resolveRowId(row, titleMap, currentId)
+    const id = resolveRowId(row, titleMap, currentId, validIds)
     if (id === undefined) {
       row.removeAttribute('data-hestia-pinned')
       return
@@ -276,7 +291,10 @@ class PinController {
       btn.setAttribute('aria-label', '置顶会话')
       btn.innerHTML = PIN_SVG
       btn.addEventListener('click', (e) => this.onPinClick(e))
-      row.appendChild(btn) // 追加为最后一个子元素，避免 React 按索引 diff 顶掉注入节点
+      // 稳定顺序：置顶按钮固定排在颜色按钮之前（否则两个控制器运行时机不同会导致左右乱序）。
+      const colorBtn = row.querySelector('.dshcolor-btn')
+      if (colorBtn !== null) row.insertBefore(btn, colorBtn)
+      else row.appendChild(btn) // 追加为最后一个子元素，避免 React 按索引 diff 顶掉注入节点
     }
     btn.setAttribute('data-hestia-session-id', id)
     btn.setAttribute('aria-pressed', String(pinned))
