@@ -1,14 +1,14 @@
 <div align="center">
   <img src="assets/hestia-icon.png" width="88" height="88" alt="Hestia logo" />
   <h1>Hestia · DeepSeek Harness Session Enhancement Plugin</h1>
-  <p><strong>Make your AI conversation interface smoother and more comfortable.</strong><br>Conversation width · Fonts · Skins · Pomodoro timer · Session navigation</p>
+  <p><strong>Make your AI conversation interface smoother and more comfortable.</strong><br>Conversation width · Fonts · Skins · Wallpapers · Pomodoro timer · Session navigation</p>
   <p><a href="README.zh.md">简体中文</a> · <strong>English</strong></p>
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-d97706" alt="MIT license" /></a>
   </p>
 </div>
 
-Hestia is a standalone [DSH](https://github.com/deepseek-ai/deepseek-harness) plugin you can install with a single `dsh plugin add` command. It adds an "Appearance" settings panel to the session page header, letting you adjust conversation width, fonts, and skins in one place — plus a Pomodoro timer (with 5 switchable style themes).
+Hestia is a standalone [DSH](https://github.com/deepseek-ai/deepseek-harness) plugin you can install with a single `dsh plugin add` command. It adds an "Appearance" settings panel to the session page header, letting you adjust conversation width, fonts, skins, and wallpapers in one place — plus a Pomodoro timer (with 5 switchable style themes).
 
 ## ✨ Features
 
@@ -22,6 +22,12 @@ Click the "Appearance" button in the session page header to open the settings pa
 
 - Font size: Small / Standard / Large / Extra large
 - Font family: Default / System / Songti / Heiti / Microsoft YaHei / KaiTi / Monospace
+
+### Background wallpaper
+
+- Upload a local image as the conversation (message area) background; it is auto-downsampled to JPEG and remembered locally, persisting after restart
+- An opacity slider (5%–100%) adjusts the wallpaper intensity; the image covers the message area, is centered, and stays fixed while messages scroll
+- After uploading, the button becomes "Change image"; a thumbnail preview appears, and one-click "Clear" restores the plain background
 
 ### Skins
 
@@ -71,7 +77,7 @@ Click the "Appearance" button in the session page header to open the settings pa
 
 ### Roadmap
 
-Intangible-heritage skins, background wallpapers, session hiding, split-pane conversations (2/3/4 panes), session cloud storage, and more.
+Intangible-heritage skins, session hiding, split-pane conversations (2/3/4 panes), session cloud storage, and more.
 
 ## 📦 Installation
 
@@ -112,6 +118,7 @@ src/
     │   ├── index.ts          AppearancePopover (entry button + popover)
     │   ├── width.ts          conversation width adjuster
     │   ├── font.ts           fonts (size / family)
+    │   ├── background.ts     background wallpaper (upload / opacity)
     │   ├── skin.ts           skin system (pure black / pure white)
     │   └── styles.ts         dshwc-* CSS
     ├── pomodoro/             Pomodoro timer

@@ -1,14 +1,14 @@
 <div align="center">
   <img src="assets/hestia-icon.png" width="88" height="88" alt="Hestia logo" />
   <h1>Hestia · DeepSeek Harness 会话增强插件</h1>
-  <p><strong>让你的 AI 会话界面更顺手、更舒适。</strong><br>对话宽度 · 字体 · 皮肤 · 番茄时钟 · 会话导航</p>
+  <p><strong>让你的 AI 会话界面更顺手、更舒适。</strong><br>对话宽度 · 字体 · 皮肤 · 壁纸 · 番茄时钟 · 会话导航</p>
   <p><strong>简体中文</strong> · <a href="README.md">English</a></p>
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-d97706" alt="MIT license" /></a>
   </p>
 </div>
 
-Hestia 是一个独立仓库的 [DSH](https://github.com/deepseek-ai/deepseek-harness) 插件，通过 `dsh plugin add` 一键安装。在会话页头部提供「外观」设置，一站式调整对话宽度、字体、皮肤，并附带番茄时钟（含 5 套可切换的风格主题）。
+Hestia 是一个独立仓库的 [DSH](https://github.com/deepseek-ai/deepseek-harness) 插件，通过 `dsh plugin add` 一键安装。在会话页头部提供「外观」设置，一站式调整对话宽度、字体、皮肤、壁纸，并附带番茄时钟（含 5 套可切换的风格主题）。
 
 ## ✨ 功能
 
@@ -22,6 +22,12 @@ Hestia 是一个独立仓库的 [DSH](https://github.com/deepseek-ai/deepseek-ha
 
 - 字号：小 / 标准 / 大 / 特大
 - 字体：默认 / 系统 / 宋体 / 黑体 / 微软雅黑 / 楷体 / 等宽
+
+### 背景壁纸
+
+- 上传本地图片作为对话区（消息区）背景，自动降采样压缩为 JPEG 后本地记忆，重启仍生效
+- 透明度滑块（5% ~ 100%）调节壁纸浓淡；图片铺满消息区并居中显示，不随消息滚动
+- 上传后按钮变为「更换图片」，旁边可预览缩略图，点「清除」一键恢复纯色背景
 
 ### 皮肤
 
@@ -71,7 +77,7 @@ Hestia 是一个独立仓库的 [DSH](https://github.com/deepseek-ai/deepseek-ha
 
 ### 规划中
 
-非遗皮肤、背景壁纸、会话隐藏、对话框分割（2/3/4 分）、会话云盘存储等。
+非遗皮肤、会话隐藏、对话框分割（2/3/4 分）、会话云盘存储等。
 
 ## 📦 安装
 
@@ -112,6 +118,7 @@ src/
     │   ├── index.ts          AppearancePopover（入口按钮 + 弹层）
     │   ├── width.ts          对话宽度调节器
     │   ├── font.ts           字体（字号 / 字体族）
+    │   ├── background.ts     背景壁纸（上传 / 透明度）
     │   ├── skin.ts           皮肤系统（纯黑 / 纯白）
     │   └── styles.ts         dshwc-* CSS
     ├── pomodoro/             番茄时钟
