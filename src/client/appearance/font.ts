@@ -1,12 +1,11 @@
 /**
  * 字体调节器：字号（小/标准/大/特大 + 微调滑块）与字体族下拉。
  *
- * 0.1.5-rc.1 的对话内容通过 CSS 变量消费字体：字号 = `--dsh-content-font-size`，
- * 字体族 = `--dsw-font-family`（bubble / markdown 正文分别引用这两个变量）。因此
- * 本模块改为直接覆盖这两个变量（与 width 的 `--dsh-chat-content-width` 同思路），
- * 作用在消息区滚动容器 `[data-conversation-scroll]` 上，localStorage 记忆；不再
- * 依赖 theme 服务的 setFontSize 链路（那条链路写 host settings，与内置设置页耦合，
- * 且只允许 12–17px）。
+ * 0.1.5-rc.1 下「整个对话」的根 slot 是 `main.conversation`（内含会话 header、
+ * 消息区 `conversation.session` 与底部 composer）。因此用 `[data-slot="main.conversation"] *`
+ * 统一覆盖字号 / 字体族（与 Hestia 旧版 `[data-slot="conversation"] *` 同语义），
+ * localStorage 记忆；不再走主题服务的 setFontSize 链路（那条链路只影响消息正文
+ * `--dsh-content-font-size`，且只允许 12–17px）。
  */
 import * as React from 'react'
 
@@ -78,8 +77,8 @@ export function FontSizeControl(): React.ReactElement {
   // 字号/字体族变化时只更新内容。
   React.useEffect(() => {
     if (styleRef.current !== null) {
-      const familyDecl = fontFamily === '' ? '' : `--dsw-font-family: ${fontFamily} !important; `
-      styleRef.current.textContent = `[data-conversation-scroll] { --dsh-content-font-size: ${fontSize}px !important; ${familyDecl}}`
+      const familyDecl = fontFamily === '' ? '' : `font-family: ${fontFamily} !important; `
+      styleRef.current.textContent = `[data-slot="main.conversation"] * { font-size: ${fontSize}px !important; ${familyDecl}}`
     }
     try {
       localStorage.setItem(FONT_STORAGE_KEY, String(fontSize))
