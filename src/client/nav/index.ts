@@ -17,8 +17,8 @@
  * - 上箭头：水平对齐下箭头右缘、垂直置于其上方 8px；非顶部时显示。
  * - 时间轴：轨道固定在会话视口右缘（扣除 composer 高度），圆点 Y 按
  *   「轮内容偏移 / 可滚动范围」比例定位。
- * - 悬停卡：摘要取 DOM bubble 文本前 50 字；时间戳由 React 数据桥（useSession 读会话快照）
- *   写入 navTimesRef，按轮序 index 对应。
+ * - 悬停卡：摘要取 DOM bubble 文本前 50 字；时间戳由 React 数据桥（useChat 读 chat 快照的
+ *   legacy.nodes，取 user 消息的 time）写入 navTimesRef，按轮序 index 对应。
  */
 import type { ClientContext } from '../context'
 import * as React from 'react'
@@ -26,15 +26,18 @@ import * as React from 'react'
 const PREVIEW_LENGTH = 50
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
-/** 会话快照最小结构视图（只取 nodes 里 user 消息的 time）。 */
+/** Chat 快照最小结构视图（legacy.nodes = ConversationNode[]，取 user 消息的 time）。 */
 interface HestiaConversationNode {
   kind: string
   time?: number
 }
-interface HestiaConversationSnapshot {
+interface HestiaLegacySlice {
   nodes: ReadonlyArray<HestiaConversationNode>
 }
-type HestiaUseSession = <S>(sel: (snap: HestiaConversationSnapshot) => S) => S
+interface HestiaChatSnapshot {
+  legacy: HestiaLegacySlice
+}
+type HestiaUseChat = <S>(sel: (snap: HestiaChatSnapshot) => S) => S
 
 /** slots 服务最小结构视图（注入 + 注册会话级 slot）。 */
 interface HestiaSlotsService {
@@ -45,19 +48,19 @@ interface HestiaSlotsService {
 /** 各轮（用户消息）时间戳的共享引用：由 NavTimeBridge 写入，DOM 控制器读取。 */
 const navTimesRef: { times: number[] } = { times: [] }
 
-/** 从会话快照提取各轮（用户消息）时间戳（按顺序，与 DOM flowItem 一一对应）。 */
-function extractUserTimes(snap: HestiaConversationSnapshot): number[] {
+/** 从 chat 快照提取各轮（用户消息）时间戳（按顺序，与 DOM flowItem 一一对应）。 */
+function extractUserTimes(snap: HestiaChatSnapshot): number[] {
   const out: number[] = []
-  for (const n of snap.nodes) {
+  for (const n of snap.legacy.nodes) {
     if (n.kind === 'user' && typeof n.time === 'number') out.push(n.time)
   }
   return out
 }
 
-/** React 数据桥：挂在会话级 slot，用 useSession 把各轮时间戳推进 navTimesRef。 */
-export function NavTimeBridge(props: { useSession?: HestiaUseSession }): null {
-  const useSession = props.useSession
-  if (useSession !== undefined) navTimesRef.times = useSession(extractUserTimes)
+/** React 数据桥：挂在会话级 slot，用 useChat 把各轮时间戳推进 navTimesRef。 */
+export function NavTimeBridge(props: { useChat?: HestiaUseChat }): null {
+  const useChat = props.useChat
+  if (useChat !== undefined) navTimesRef.times = useChat(extractUserTimes)
   return null
 }
 
@@ -499,10 +502,10 @@ export function initConversationNav(ctx: ClientContext): void {
     return () => controller.dispose()
   })
 
-  // 时间戳数据桥：会话级 slot 用 useSession 读快照，把各轮时间戳写入 navTimesRef。
+  // 时间戳数据桥：会话级 slot 用 useChat 读快照，把各轮时间戳写入 navTimesRef。
   const slots = ctx.get('slots') as HestiaSlotsService | undefined
   slots?.inject('conversation.session.header.utilities', () => slots.register({
     name: 'conversation.session.header.utilities',
     id: 'hestia-nav-time-bridge',
-  }, (props) => React.createElement(NavTimeBridge, { useSession: (props as { useSession?: HestiaUseSession }).useSession })))
+  }, (props) => React.createElement(NavTimeBridge, { useChat: (props as { useChat?: HestiaUseChat }).useChat })))
 }
