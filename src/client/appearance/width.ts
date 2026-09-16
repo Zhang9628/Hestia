@@ -66,7 +66,7 @@ export function ChatWidthControl(): React.ReactElement {
   // 宽度变化时只更新内容。
   React.useEffect(() => {
     if (styleRef.current !== null) {
-      styleRef.current.textContent = `[data-slot="conversation"] > * { --dsh-chat-content-width: ${width}px !important; }`
+      styleRef.current.textContent = `[data-chat-flow] { --dsh-chat-content-width: ${width}px !important; }`
     }
     try {
       localStorage.setItem(STORAGE_KEY, String(width))

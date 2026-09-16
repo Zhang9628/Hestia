@@ -80,7 +80,7 @@ export function AppearancePopover(props: { theme: HestiaThemeService | undefined
     'aria-hidden': !open,
   },
     React.createElement(Group, { label: '宽度' }, React.createElement(ChatWidthControl)),
-    React.createElement(Group, { label: '字号' }, React.createElement(FontSizeControl)),
+    React.createElement(Group, { label: '字号' }, React.createElement(FontSizeControl, { theme, ctx })),
     React.createElement(Group, { label: '壁纸' }, React.createElement(BackgroundImageControl)),
     React.createElement(Group, { label: '皮肤' }, React.createElement(SkinControl, { theme, ctx })),
   )

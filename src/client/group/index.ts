@@ -35,23 +35,9 @@ interface HestiaObservableSnapshot<T> {
 interface HestiaSessionsService {
   list: HestiaObservableSnapshot<HestiaSessionListState>
 }
-interface HestiaSlotsService {
-  entries(key: string): Array<{ store?: unknown }>
-  resolveStore(handle: unknown, scopeKey?: string): HestiaViewStoreInstance | undefined
-}
-interface HestiaViewStoreState {
-  groupBy?: string
-  sessionOrderByAccount?: Record<string, string[]>
-  sessionUpdatedAtByAccount?: Record<string, Record<string, number>>
-}
-interface HestiaViewStoreInstance {
-  getSnapshot(): HestiaViewStoreState
-  store?: { update(mutator: (draft: HestiaViewStoreState) => void): void }
-}
 
 // —— 常量 ——
 const GROUPING_KEY = 'hestia-color-grouping'
-const PREV_GROUPBY_KEY = 'hestia-group-by-before-color'
 const PIN_STORAGE_KEY = 'hestia-pinned-sessions'
 const ROW_ID_ATTR = 'data-hestia-row-id'
 const ITEM_CLASS = 'dshgroup-menu-item'
@@ -124,47 +110,22 @@ function buildTitleMap(list: HestiaSessionListState): Map<string, string[]> {
   return map
 }
 
-/** 从 slots 服务解析工作区视图 store（root scope）。失败返回 null。 */
-function findStoreInstance(slots: HestiaSlotsService | undefined): HestiaViewStoreInstance | null {
-  if (slots === undefined) return null
-  try {
-    const entries = slots.entries('sidebar.workspaces')
-    if (!Array.isArray(entries)) return null
-    for (const entry of entries) {
-      const handle = entry?.store
-      if (handle === undefined || handle === null) continue
-      const instance = slots.resolveStore(handle, undefined)
-      if (instance !== undefined && typeof instance.getSnapshot === 'function') return instance
-    }
-  } catch {
-    // ignore
-  }
-  return null
-}
-
 class ColorGroupingController {
   private readonly sessions: HestiaSessionsService
-  private readonly slots: HestiaSlotsService | undefined
   private enabled: boolean
-  private prevGroupBy: string
   private observer: MutationObserver | null = null
   private unsubscribe: (() => void) | null = null
   private rafId: number | null = null
-  private storeInstance: HestiaViewStoreInstance | null = null
   private lastSignature: string | null = null
 
-  constructor(sessions: HestiaSessionsService, slots: HestiaSlotsService | undefined) {
+  constructor(sessions: HestiaSessionsService) {
     this.sessions = sessions
-    this.slots = slots
     this.enabled = localStorage.getItem(GROUPING_KEY) === '1'
-    this.prevGroupBy = localStorage.getItem(PREV_GROUPBY_KEY) ?? 'workspace'
     setColorGroupingActive(this.enabled)
   }
 
   start(): void {
     this.unsubscribe = this.sessions.list.subscribe(() => this.schedule())
-    // 启动时若处于开启态，立即切到单列表（恢复上次会话的分组态）。
-    if (this.enabled) this.ensureFlat()
     this.refresh()
     this.observer = new MutationObserver(() => this.schedule())
     this.observer.observe(document.body, { childList: true, subtree: true })
@@ -193,38 +154,10 @@ class ColorGroupingController {
   private refresh(): void {
     this.syncMenuItem()
     if (this.enabled) {
-      this.ensureFlat()
       this.syncGrouping()
     } else {
       this.cleanupHeaders()
     }
-  }
-
-  // —— store 访问 ——
-  private resolveStore(): HestiaViewStoreInstance | null {
-    if (this.storeInstance !== null) return this.storeInstance
-    // 只缓存「非空」实例：工作区视图 store 可能晚于本插件 apply 才注册，
-    // 首次解析失败时后续 refresh 要能重试，而不是像 pin 那样缓存 null。
-    const found = findStoreInstance(this.slots)
-    if (found !== null) this.storeInstance = found
-    return found
-  }
-
-  private currentGroupBy(): string {
-    return this.resolveStore()?.getSnapshot().groupBy ?? 'workspace'
-  }
-
-  private setGroupBy(value: string): void {
-    const store = this.resolveStore()
-    if (store === null || typeof store.store?.update !== 'function') return
-    store.store.update((draft) => {
-      draft.groupBy = value
-    })
-  }
-
-  /** 强制单列表（颜色分组需要 flatList 全量渲染、无折叠）。 */
-  private ensureFlat(): void {
-    if (this.currentGroupBy() !== 'flat') this.setGroupBy('flat')
   }
 
   // —— 菜单注入 ——
@@ -291,20 +224,7 @@ class ColorGroupingController {
     }
     setColorGroupingActive(this.enabled)
 
-    if (this.enabled) {
-      // 记住启用前的 groupBy（若本就是 flat 则保留旧值），停用时据此还原。
-      const current = this.currentGroupBy()
-      if (current !== 'flat') {
-        this.prevGroupBy = current
-        try {
-          localStorage.setItem(PREV_GROUPBY_KEY, current)
-        } catch {
-          // ignore
-        }
-      }
-      this.ensureFlat()
-    } else {
-      this.setGroupBy(this.prevGroupBy === 'flat' ? 'workspace' : this.prevGroupBy)
+    if (!this.enabled) {
       this.cleanupHeaders()
       this.lastSignature = null
     }
@@ -441,13 +361,12 @@ function sortWithin(units: Unit[]): Unit[] {
   return pinnedUnits.concat(units.filter((u) => !u.pinned))
 }
 
-/** 装配入口：订阅 sessions.list + 观察 DOM，注入「按标识颜色」分组能力。 */
+/** 装配入口：订阅 sessions.list + 观察 DOM，注入「按标识颜色」分组能力（仅在单列表模式下生效）。 */
 export function initColorGrouping(ctx: ClientContext): void {
   if (typeof document === 'undefined') return
   const sessions = ctx.get('sessions') as HestiaSessionsService | undefined
   if (sessions === undefined) return
-  const slots = ctx.get('slots') as HestiaSlotsService | undefined
-  const controller = new ColorGroupingController(sessions, slots)
+  const controller = new ColorGroupingController(sessions)
   ctx.effect(() => {
     controller.start()
     return () => controller.dispose()
