@@ -17,8 +17,8 @@ import { initColorGrouping } from './group'
 import { initSessionUsage } from './usage'
 import { initConversationNav } from './nav'
 
-/** 需要的客户端服务：slots。 */
-export const inject: string[] = ['slots']
+/** 需要的客户端服务：apply 前必须就绪，否则 ctx.get 拿不到服务、相关功能（皮肤/置顶/标识颜色/分组/用量）会静默失效。 */
+export const inject: string[] = ['slots', 'theme', 'sessions', 'workspaces']
 
 /** 浏览器插件入口：注入样式、注册皮肤、挂载外观面板 + 番茄钟，并启动列表增强（置顶 / 标识颜色 / 悬停 token 用量）。 */
 export function apply(ctx: ClientContext): void {
