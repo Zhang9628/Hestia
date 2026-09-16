@@ -10,20 +10,18 @@
  *
  * 折叠场景（工作区会话超过 5 条时，React 只渲染 `slice(0, 5)`，其余藏在
  * 「展开其余 x 个会话」按钮后）：DOM 重排只能移动已渲染的行，藏在折叠尾部的
- * 置顶会话不在 DOM 里，因此仅靠 DOM 重排无法把它们提到最前。为此，额外把
- * 「置顶优先」顺序写回工作区视图 store 的 `sessionOrderByAccount`（这也是侧栏
- * 决定渲染顺序、进而决定折叠可见切片的唯一权威），让 React 在折叠态也按置顶
- * 优先渲染。DOM 重排仍保留：它覆盖 flat 列表、以及 store 被「最近更新」排序
- * 短暂抢回顺序的间隙。
+ * 置顶会话不在 DOM 里，因此仅靠 DOM 重排无法把它们提到最前。为此，置顶/取消
+ * 置顶时用官方 `workspaces.insertSessionBefore` 把会话持久排序到工作区内正确
+ * 位置（置顶 → 非置顶区之前；取消 → 非置顶区最前），让 React 在折叠态也按置顶
+ * 优先渲染。DOM 重排仍保留：覆盖 flat 列表、以及 host 刷新之间的即时反馈。
  *
  * 逆向结论（见 @deepseek-ai/dsh-client-ui-workspace 源码）：
  * - 会话行 = `[class*="sessionRow"]`（CSS Modules 哈希前缀 + 语义类名），
  *   role=treeitem，无 data-session-id；标题文本在行内 `[class*="title"]` 子元素。
  * - 行标题 = `SessionSummary.displayTitle`（durable title → cwd 目录名 → 原始 id）。
  * - 行按钮追加为「最后一个子元素」，避免 React 按索引 diff 时把注入节点顶掉。
- * - 工作区视图 store 通过 `slots.entries('sidebar.workspaces')` 上的 store handle
- *   解析（`slots.resolveStore`），这是运行时才有的内部 API，故防御式访问，失败
- *   时静默退回纯 DOM 重排。
+ * - 官方排序走 `ctx.workspaces.insertSessionBefore`（host 持久化工作区内顺序）；
+ *   未分组的会话没有 workspaceId，只能退回纯 DOM 重排。
  */
 import type { ClientContext } from '../context'
 import { colorGroupingActive } from '../group/state'
@@ -48,6 +46,18 @@ interface HestiaObservableSnapshot<T> {
 /** sessions 服务的最小结构视图（只用 list 快照，避免引入完整 ISessions 类型）。 */
 interface HestiaSessionsService {
   list: HestiaObservableSnapshot<HestiaSessionListState>
+}
+/** 工作区服务的最小结构视图：置顶排序走官方 insertSessionBefore（host 持久化顺序）。 */
+interface HestiaWorkspaceItem {
+  workspaceId: string
+  sessionIds: readonly string[]
+}
+interface HestiaWorkspaceListState {
+  items: readonly HestiaWorkspaceItem[]
+}
+interface HestiaWorkspacesService {
+  list: HestiaObservableSnapshot<HestiaWorkspaceListState>
+  insertSessionBefore(workspaceId: string, sessionId: string, beforeSessionId?: string): Promise<unknown>
 }
 
 const PIN_STORAGE_KEY = 'hestia-pinned-sessions'
@@ -141,13 +151,15 @@ function isPinnableRow(row: Element): boolean {
 
 class PinController {
   private readonly sessions: HestiaSessionsService
+  private readonly workspaces: HestiaWorkspacesService | undefined
   private pinned: Set<string>
   private observer: MutationObserver | null = null
   private unsubscribe: (() => void) | null = null
   private rafId: number | null = null
 
-  constructor(sessions: HestiaSessionsService) {
+  constructor(sessions: HestiaSessionsService, workspaces: HestiaWorkspacesService | undefined) {
     this.sessions = sessions
+    this.workspaces = workspaces
     this.pinned = loadPinned()
   }
 
@@ -239,10 +251,33 @@ class PinController {
     const target = e.currentTarget as HTMLElement | null
     const id = target?.dataset.hestiaSessionId
     if (id === undefined || id === '') return
-    if (this.pinned.has(id)) this.pinned.delete(id)
-    else this.pinned.add(id)
+    const nowPinned = !this.pinned.has(id)
+    if (nowPinned) this.pinned.add(id)
+    else this.pinned.delete(id)
     savePinned(this.pinned)
+    this.syncHostOrder(id, nowPinned)
     this.refresh()
+  }
+
+  /**
+   * 用官方 `workspaces.insertSessionBefore` 持久化置顶顺序（覆盖折叠态：让置顶会话
+   * 进入 React 渲染的前 5 可见切片）。置顶 → 移到第一个非置顶会话之前；取消置顶 →
+   * 移到第一个非置顶会话之前（成为非置顶区最前，保持可逆）；无其他非置顶会话时取消
+   * 置顶则追加到末尾。未分组会话没有 workspaceId，静默跳过（退回 DOM 重排）。
+   */
+  private syncHostOrder(id: string, pinned: boolean): void {
+    const ws = this.workspaces
+    if (ws === undefined) return
+    for (const item of ws.list.getSnapshot().items) {
+      if (!item.sessionIds.includes(id)) continue
+      const firstNonPinned = item.sessionIds.find((sid) => sid !== id && !this.pinned.has(sid))
+      if (firstNonPinned !== undefined) {
+        void ws.insertSessionBefore(item.workspaceId, id, firstNonPinned).catch(() => {})
+      } else if (!pinned) {
+        void ws.insertSessionBefore(item.workspaceId, id).catch(() => {})
+      }
+      return
+    }
   }
 
   /** 找出所有容纳会话行的列表容器（分组的 groupSection / 平铺的 flatList）。 */
@@ -296,12 +331,13 @@ class PinController {
   }
 }
 
-/** 装配入口：订阅 sessions.list + 观察 DOM，注入置顶能力（纯 DOM 重排，覆盖未折叠的会话列表）。 */
+/** 装配入口：订阅 sessions.list + 观察 DOM，注入置顶能力（DOM 重排 + 官方 insertSessionBefore 持久排序）。 */
 export function initSessionPin(ctx: ClientContext): void {
   if (typeof document === 'undefined') return
   const sessions = ctx.get('sessions') as HestiaSessionsService | undefined
   if (sessions === undefined) return
-  const controller = new PinController(sessions)
+  const workspaces = ctx.get('workspaces') as HestiaWorkspacesService | undefined
+  const controller = new PinController(sessions, workspaces)
   ctx.effect(() => {
     controller.start()
     return () => controller.dispose()
