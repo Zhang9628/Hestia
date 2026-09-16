@@ -2,7 +2,7 @@
  * 皮肤系统：纯黑 / 纯白。
  * 皮肤 id 通过 theme.setTheme 切换，localStorage 记忆。
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext } from '../context'
 import * as React from 'react'
 import type { HestiaThemeService } from '../theme'
 

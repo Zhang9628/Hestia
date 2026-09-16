@@ -3,27 +3,8 @@
  * 功能按模块拆分在 appearance/、pomodoro/、pin/、color/、group/、usage/、nav/ 下，本文件只做装配：
  * 注入全局 CSS、注册皮肤、挂载两个 slot（外观入口 / 番茄球），并启动列表增强与会话导航。
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-// type-only：拉取 ui-conversation 的 SlotMap merge（让 slots.register 认识 conversation.* 键）
-import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ClientContext } from './context'
 import * as React from 'react'
-
-// 声明 shell 的 theme/change 事件（由 dsh-client-ui-theme 提供），让 ctx.on('theme/change') 类型正确。
-declare module '@deepseek-ai/cordis' {
-  interface Events {
-    'theme/change'(snapshot: unknown): void
-  }
-}
-
-// 声明 shell.overlay slot（由 dsh-client-ui-layout 提供，本包 devDeps 未含该包），让 slots.register('shell.overlay') 类型正确。
-declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface SlotMap {
-    'shell.overlay': {
-      kind: 'list'
-      scope: 'root'
-    }
-  }
-}
 
 import type { HestiaThemeService } from './theme'
 import { CSS } from './styles'

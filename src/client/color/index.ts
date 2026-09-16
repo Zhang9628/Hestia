@@ -13,7 +13,7 @@
  * （多嵌套一层），故标题统一用 `querySelector('[class*="title"]')` 取。工作区行被
  * HoverCard 包一层 wrapper，未分组桶无 workspaceId（标题为本地化「Ungrouped」），跳过。
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext } from '../context'
 
 /** 会话列表快照的最小结构视图（运行时由 shell 的 dsh-client-runtime 提供）。 */
 interface HestiaSessionSummary {

@@ -12,7 +12,7 @@
  *   容器内把会话单元按色重排 + 插入组头；React 重渲染后由 observer 兜底再排。
  * - 与 pin 协调：开启时置 color-grouping 开关，pin 跳过重排（见 group/state.ts）。
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext } from '../context'
 import { PRESET_COLORS, SESSION_COLOR_KEY } from '../color'
 import { setColorGroupingActive } from './state'
 

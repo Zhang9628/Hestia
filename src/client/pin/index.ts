@@ -25,7 +25,7 @@
  *   解析（`slots.resolveStore`），这是运行时才有的内部 API，故防御式访问，失败
  *   时静默退回纯 DOM 重排。
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext } from '../context'
 import { colorGroupingActive } from '../group/state'
 
 /** 会话列表快照的最小结构视图（运行时由 shell 的 dsh-client-runtime 提供）。 */

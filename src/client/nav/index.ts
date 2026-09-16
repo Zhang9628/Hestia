@@ -20,7 +20,7 @@
  * - 悬停卡：摘要取 DOM bubble 文本前 50 字；时间戳由 React 数据桥（useSession 读会话快照）
  *   写入 navTimesRef，按轮序 index 对应。
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext } from '../context'
 import * as React from 'react'
 
 const PREVIEW_LENGTH = 50
