@@ -1,25 +1,25 @@
 /**
  * 字体调节器：字号（小/标准/大/特大 + 微调滑块）与字体族下拉。
  *
- * 0.1.5-rc.1 起 shell 内置了对话内容字号能力（ThemeRuntime.setFontSize /
- * `--dsh-content-font-size`，范围 12–17px，默认 14px），字号部分直接对接内置
- * （单一事实源，持久化到 host settings），不再用 CSS 硬盖；字体族仍走 style 标签
- * 覆盖 `[data-conversation-scroll]`（消息区滚动容器），localStorage 记忆。
+ * 0.1.5-rc.1 的对话内容通过 CSS 变量消费字体：字号 = `--dsh-content-font-size`，
+ * 字体族 = `--dsw-font-family`（bubble / markdown 正文分别引用这两个变量）。因此
+ * 本模块改为直接覆盖这两个变量（与 width 的 `--dsh-chat-content-width` 同思路），
+ * 作用在消息区滚动容器 `[data-conversation-scroll]` 上，localStorage 记忆；不再
+ * 依赖 theme 服务的 setFontSize 链路（那条链路写 host settings，与内置设置页耦合，
+ * 且只允许 12–17px）。
  */
 import * as React from 'react'
-import type { ClientContext } from '../context'
-import type { HestiaThemeService } from '../theme'
 
-/** 字号范围对齐 shell 内置（FONT_SIZE_MIN=12 / FONT_SIZE_MAX=17 / DEFAULT=14）。 */
+const FONT_STORAGE_KEY = 'hestia-font-size'
 const FONT_MIN = 12
-const FONT_MAX = 17
-const FONT_DEFAULT = 14
+const FONT_MAX = 24
+const FONT_DEFAULT = 16
 const FONT_STEP = 1
 const FONT_PRESETS = [
-  { label: '小', size: 12 },
-  { label: '标准', size: 14 },
-  { label: '大', size: 16 },
-  { label: '特大', size: 17 },
+  { label: '小', size: 14 },
+  { label: '标准', size: 16 },
+  { label: '大', size: 18 },
+  { label: '特大', size: 22 },
 ]
 const FONT_FAMILY_STORAGE_KEY = 'hestia-font-family'
 const FONT_FAMILIES = [
@@ -32,9 +32,15 @@ const FONT_FAMILIES = [
   { label: '等宽', value: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
 ]
 
-function clampFontSize(n: number): number {
-  if (!Number.isFinite(n)) return FONT_DEFAULT
-  return n < FONT_MIN ? FONT_MIN : n > FONT_MAX ? FONT_MAX : Math.round(n)
+function loadFontSize(): number {
+  try {
+    const raw = localStorage.getItem(FONT_STORAGE_KEY)
+    const n = Number(raw)
+    if (Number.isFinite(n) && n >= FONT_MIN && n <= FONT_MAX) return n
+  } catch {
+    // ignore
+  }
+  return FONT_DEFAULT
 }
 
 function loadFontFamily(): string {
@@ -47,25 +53,16 @@ function loadFontFamily(): string {
   return ''
 }
 
-export function FontSizeControl(props: { theme: HestiaThemeService | undefined; ctx: ClientContext }): React.ReactElement {
-  const { theme, ctx } = props
-  const [fontSize, setFontSize] = React.useState<number>(() => clampFontSize(theme?.getTheme().fontSize ?? FONT_DEFAULT))
+function magnetFontSize(raw: number): number {
+  return Math.round(raw)
+}
+
+export function FontSizeControl(): React.ReactElement {
+  const [fontSize, setFontSize] = React.useState<number>(loadFontSize)
   const [fontFamily, setFontFamily] = React.useState<string>(loadFontFamily)
   const styleRef = React.useRef<HTMLStyleElement | null>(null)
 
-  // 与内置字号设置保持同步（设置页 FontSizeRow / 外部 theme/change 都可能改字号）。
-  React.useEffect(() => {
-    const sync = (): void => {
-      const n = theme?.getTheme().fontSize
-      setFontSize(clampFontSize(n ?? FONT_DEFAULT))
-    }
-    const off = ctx.on('theme/change', sync)
-    return () => {
-      off()
-    }
-  }, [theme, ctx])
-
-  // 字体族 style 标签：挂载建一次，卸载时才删——与弹层开关解耦。
+  // 挂载时建一次 style 标签，卸载时才删——与弹层开关解耦。
   React.useEffect(() => {
     const tag = document.createElement('style')
     tag.dataset.plugin = 'dsh-hestia'
@@ -78,32 +75,25 @@ export function FontSizeControl(props: { theme: HestiaThemeService | undefined; 
     }
   }, [])
 
-  // 字体族变化时只更新内容。
+  // 字号/字体族变化时只更新内容。
   React.useEffect(() => {
     if (styleRef.current !== null) {
-      styleRef.current.textContent = fontFamily === '' ? '' : `[data-conversation-scroll] { font-family: ${fontFamily} !important; }`
+      const familyDecl = fontFamily === '' ? '' : `--dsw-font-family: ${fontFamily} !important; `
+      styleRef.current.textContent = `[data-conversation-scroll] { --dsh-content-font-size: ${fontSize}px !important; ${familyDecl}}`
     }
     try {
+      localStorage.setItem(FONT_STORAGE_KEY, String(fontSize))
       localStorage.setItem(FONT_FAMILY_STORAGE_KEY, fontFamily)
     } catch {
       // ignore
     }
-  }, [fontFamily])
-
-  const pickSize = (size: number): void => {
-    setFontSize(size)
-    try {
-      theme?.setFontSize(size)
-    } catch {
-      // ignore（theme 未就绪 / 值越界时静默）
-    }
-  }
+  }, [fontSize, fontFamily])
 
   const presetButtons = FONT_PRESETS.map((p) => {
     const active = fontSize === p.size
     return React.createElement(
       'button',
-      { type: 'button', key: p.label, className: 'dshwc-segItem' + (active ? ' dshwc-segItemActive' : ''), onClick: () => pickSize(p.size) },
+      { type: 'button', key: p.label, className: 'dshwc-segItem' + (active ? ' dshwc-segItemActive' : ''), onClick: () => setFontSize(p.size) },
       p.label,
     )
   })
@@ -117,7 +107,7 @@ export function FontSizeControl(props: { theme: HestiaThemeService | undefined; 
     value: fontSize,
     className: 'dshwc-range',
     'aria-label': '对话字体',
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => pickSize(Math.round(Number(e.target.value))),
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setFontSize(magnetFontSize(Number(e.target.value))),
   })
   const track = React.createElement('div', { className: 'dshwc-track' })
   const sliderWrap = React.createElement('div', { className: 'dshwc-sliderWrap' }, [slider, track])
