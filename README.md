@@ -59,6 +59,21 @@ Click the "Appearance" button in the session page header to open the settings pa
 - The color bar is always visible; reopen the palette and click "Clear" to remove the color
 - The color mapping is remembered locally and persists after restart
 
+### Session labels
+
+- Hover a session row to reveal a tag button at the end of the row (next to the pin / color buttons); click it to open the editor
+- Type the label text and pick a colour for **that label** — the colour belongs to the label itself, so every session using the same label text shares one colour, and changing it recolours all of them at once
+- Rows render as `label colour dot + 【label text】 + session title`, with time and row actions unchanged; sessions without a label look exactly as before
+- The "Existing labels" area lets you reuse a label — one click fills the text
+- Label text (`hestia-session-labels`) and label colours (`hestia-label-colors`) are remembered locally and persist after restart
+
+### Sort by label
+
+- A new "By label" entry in **View options → Order by**: once enabled, sessions inside each workspace are secondarily sorted by label
+- Sort key: new session (the provisional row) → pinned → labelled → label text ascending (Latin / digits first, Chinese by pinyin) → unlabelled sink to the bottom in their existing order
+- While enabled the target order is written back to the host (otherwise the collapsed 5-row view cannot reflect it), and the pre-sort order is backed up locally; turning it off restores that backup
+- Mutually exclusive with "Group by color" (it yields while colour grouping owns the list); pinning keeps working — pin priority is folded into this comparator
+
 ### Group by color
 
 - In the workspace sidebar's **View options → Group by** menu there is a new "By color" entry; selecting it groups the session list by each session's color label (red → orange → … → uncolored), each with a colored group header + count

@@ -1,6 +1,11 @@
 /**
  * 字体调节器：字号（小/标准/大/特大 + 微调滑块）与字体族下拉。
- * 通过 style 标签覆盖 `[data-slot="conversation"] *`，localStorage 记忆。
+ *
+ * 0.1.5-rc.1 下「整个对话」的根 slot 是 `main.conversation`（内含会话 header、
+ * 消息区 `conversation.session` 与底部 composer）。因此用 `[data-slot="main.conversation"] *`
+ * 统一覆盖字号 / 字体族（与 Hestia 旧版 `[data-slot="conversation"] *` 同语义），
+ * localStorage 记忆；不再走主题服务的 setFontSize 链路（那条链路只影响消息正文
+ * `--dsh-content-font-size`，且只允许 12–17px）。
  */
 import * as React from 'react'
 
@@ -69,11 +74,11 @@ export function FontSizeControl(): React.ReactElement {
     }
   }, [])
 
-  // 字号/字体变化时只更新内容。
+  // 字号/字体族变化时只更新内容。
   React.useEffect(() => {
     if (styleRef.current !== null) {
       const familyDecl = fontFamily === '' ? '' : `font-family: ${fontFamily} !important; `
-      styleRef.current.textContent = `[data-slot="conversation"] * { ${familyDecl}font-size: ${fontSize}px !important; }`
+      styleRef.current.textContent = `[data-slot="main.conversation"] * { font-size: ${fontSize}px !important; ${familyDecl}}`
     }
     try {
       localStorage.setItem(FONT_STORAGE_KEY, String(fontSize))

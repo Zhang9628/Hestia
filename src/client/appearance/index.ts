@@ -3,7 +3,7 @@
  * 面板内分四组：宽度（width）/ 字号（font）/ 壁纸（background）/ 皮肤（skin）。面板始终挂载、仅用 CSS 隐藏，
  * 关闭弹层后控件及其动态 style 标签仍在，改动持续生效。
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext } from '../context'
 import * as React from 'react'
 import type { HestiaThemeService } from '../theme'
 import { ChatWidthControl } from './width'

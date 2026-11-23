@@ -10,25 +10,24 @@
  *
  * 折叠场景（工作区会话超过 5 条时，React 只渲染 `slice(0, 5)`，其余藏在
  * 「展开其余 x 个会话」按钮后）：DOM 重排只能移动已渲染的行，藏在折叠尾部的
- * 置顶会话不在 DOM 里，因此仅靠 DOM 重排无法把它们提到最前。为此，额外把
- * 「置顶优先」顺序写回工作区视图 store 的 `sessionOrderByAccount`（这也是侧栏
- * 决定渲染顺序、进而决定折叠可见切片的唯一权威），让 React 在折叠态也按置顶
- * 优先渲染。DOM 重排仍保留：它覆盖 flat 列表、以及 store 被「最近更新」排序
- * 短暂抢回顺序的间隙。
+ * 置顶会话不在 DOM 里，因此仅靠 DOM 重排无法把它们提到最前。为此，置顶/取消
+ * 置顶时用官方 `workspaces.insertSessionBefore` 把会话持久排序到工作区内正确
+ * 位置（置顶 → 非置顶区之前；取消 → 非置顶区最前），让 React 在折叠态也按置顶
+ * 优先渲染。DOM 重排仍保留：覆盖 flat 列表、以及 host 刷新之间的即时反馈。
  *
  * 逆向结论（见 @deepseek-ai/dsh-client-ui-workspace 源码）：
  * - 会话行 = `[class*="sessionRow"]`（CSS Modules 哈希前缀 + 语义类名），
  *   role=treeitem，无 data-session-id；标题文本在行内 `[class*="title"]` 子元素。
  * - 行标题 = `SessionSummary.displayTitle`（durable title → cwd 目录名 → 原始 id）。
  * - 行按钮追加为「最后一个子元素」，避免 React 按索引 diff 时把注入节点顶掉。
- * - 工作区视图 store 通过 `slots.entries('sidebar.workspaces')` 上的 store handle
- *   解析（`slots.resolveStore`），这是运行时才有的内部 API，故防御式访问，失败
- *   时静默退回纯 DOM 重排。
+ * - 官方排序走 `ctx.workspaces.insertSessionBefore`（host 持久化工作区内顺序）；
+ *   未分组的会话没有 workspaceId，只能退回纯 DOM 重排。
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext } from '../context'
 import { colorGroupingActive } from '../group/state'
+import { labelSortActive } from '../label/state'
 
-/** 会话列表快照的最小结构视图（运行时由 shell 的 dsh-client-runtime 提供）。 */
+/** 会话列表快照的最小结构视图（运行时由 shell 的 sessions 服务提供）。 */
 interface HestiaSessionSummary {
   id: string
   title?: string
@@ -49,37 +48,17 @@ interface HestiaObservableSnapshot<T> {
 interface HestiaSessionsService {
   list: HestiaObservableSnapshot<HestiaSessionListState>
 }
-/** 工作区列表快照的最小结构视图（需要 sessionIds 以按工作区归组重排）。 */
+/** 工作区服务的最小结构视图：置顶排序走官方 insertSessionBefore（host 持久化顺序）。 */
 interface HestiaWorkspaceItem {
   workspaceId: string
-  title: string
-  sessionIds: string[]
+  sessionIds: readonly string[]
 }
 interface HestiaWorkspaceListState {
   items: readonly HestiaWorkspaceItem[]
 }
 interface HestiaWorkspacesService {
   list: HestiaObservableSnapshot<HestiaWorkspaceListState>
-}
-/**
- * slots 服务上读取工作区视图 store 所需的最小视图。
- * `entries` / `resolveStore` 是 SlotRegistry 的运行时方法（非插件公开 API），
- * 这里只做防御式访问：拿不到就退回纯 DOM 重排。
- */
-interface HestiaSlotsService {
-  entries(key: string): Array<{ store?: unknown }>
-  resolveStore(handle: unknown, scopeKey?: string): HestiaViewStoreInstance | undefined
-}
-/** 工作区视图 store 的最小视图（defineStore 实例，root scope）。 */
-interface HestiaViewStoreState {
-  sessionOrderByAccount?: Record<string, string[]>
-  sessionUpdatedAtByAccount?: Record<string, Record<string, number>>
-}
-interface HestiaViewStoreInstance {
-  getSnapshot(): HestiaViewStoreState
-  store?: {
-    update(mutator: (draft: HestiaViewStoreState) => void): void
-  }
+  insertSessionBefore(workspaceId: string, sessionId: string, beforeSessionId?: string): Promise<unknown>
 }
 
 const PIN_STORAGE_KEY = 'hestia-pinned-sessions'
@@ -171,55 +150,17 @@ function isPinnableRow(row: Element): boolean {
   return row.querySelector('[class*="rowActions"]') !== null
 }
 
-/** 合并会话集合与其已存顺序：已存 id 优先，其余按原生顺序追加（复刻 reconciledSessionOrder）。 */
-function reconcileOrder(sessionIds: string[], stored: string[]): string[] {
-  if (stored.length === 0) return [...sessionIds]
-  const known = new Set(sessionIds)
-  const ordered: string[] = []
-  const included = new Set<string>()
-  for (const id of stored) {
-    if (!known.has(id) || included.has(id)) continue
-    ordered.push(id)
-    included.add(id)
-  }
-  for (const id of sessionIds) {
-    if (!included.has(id)) ordered.push(id)
-  }
-  return ordered
-}
-
-/** 从 slots 服务解析工作区视图 store 实例（root scope）。找不到/出错返回 null，退回纯 DOM 重排。 */
-function findStoreInstance(slots: HestiaSlotsService | undefined): HestiaViewStoreInstance | null {
-  if (slots === undefined) return null
-  try {
-    const entries = slots.entries('sidebar.workspaces')
-    if (!Array.isArray(entries)) return null
-    for (const entry of entries) {
-      const handle = entry?.store
-      if (handle === undefined || handle === null) continue
-      const instance = slots.resolveStore(handle, undefined)
-      if (instance !== undefined && typeof instance.getSnapshot === 'function') return instance
-    }
-  } catch {
-    // 内部 API 变动时静默退回纯 DOM 重排。
-  }
-  return null
-}
-
 class PinController {
   private readonly sessions: HestiaSessionsService
   private readonly workspaces: HestiaWorkspacesService | undefined
-  private readonly slots: HestiaSlotsService | undefined
   private pinned: Set<string>
   private observer: MutationObserver | null = null
   private unsubscribe: (() => void) | null = null
   private rafId: number | null = null
-  private storeInstance: HestiaViewStoreInstance | null = null
 
-  constructor(sessions: HestiaSessionsService, workspaces: HestiaWorkspacesService | undefined, slots: HestiaSlotsService | undefined) {
+  constructor(sessions: HestiaSessionsService, workspaces: HestiaWorkspacesService | undefined) {
     this.sessions = sessions
     this.workspaces = workspaces
-    this.slots = slots
     this.pinned = loadPinned()
   }
 
@@ -267,9 +208,10 @@ class PinController {
 
     // 按标识颜色分组开启时，重排交给 group 模块（否则两者互相打乱对方顺序）。
     if (colorGroupingActive()) return
+    // 按标签排序开启时，重排交给 label/sort（它内部把「置顶优先」算进比较键）。
+    if (labelSortActive()) return
 
     this.reorderContainers()
-    this.syncStoreOrder(list)
   }
 
   /** 为单行注入/更新置顶按钮与置顶标记。 */
@@ -312,10 +254,35 @@ class PinController {
     const target = e.currentTarget as HTMLElement | null
     const id = target?.dataset.hestiaSessionId
     if (id === undefined || id === '') return
-    if (this.pinned.has(id)) this.pinned.delete(id)
-    else this.pinned.add(id)
+    const nowPinned = !this.pinned.has(id)
+    if (nowPinned) this.pinned.add(id)
+    else this.pinned.delete(id)
     savePinned(this.pinned)
+    this.syncHostOrder(id, nowPinned)
     this.refresh()
+  }
+
+  /**
+   * 用官方 `workspaces.insertSessionBefore` 持久化置顶顺序（覆盖折叠态：让置顶会话
+   * 进入 React 渲染的前 5 可见切片）。置顶 → 移到第一个非置顶会话之前；取消置顶 →
+   * 移到第一个非置顶会话之前（成为非置顶区最前，保持可逆）；无其他非置顶会话时取消
+   * 置顶则追加到末尾。未分组会话没有 workspaceId，静默跳过（退回 DOM 重排）。
+   */
+  private syncHostOrder(id: string, pinned: boolean): void {
+    // 按标签排序接管顺序时不要写 host，否则两个模块会把顺序来回改。
+    if (labelSortActive()) return
+    const ws = this.workspaces
+    if (ws === undefined) return
+    for (const item of ws.list.getSnapshot().items) {
+      if (!item.sessionIds.includes(id)) continue
+      const firstNonPinned = item.sessionIds.find((sid) => sid !== id && !this.pinned.has(sid))
+      if (firstNonPinned !== undefined) {
+        void ws.insertSessionBefore(item.workspaceId, id, firstNonPinned).catch(() => {})
+      } else if (!pinned) {
+        void ws.insertSessionBefore(item.workspaceId, id).catch(() => {})
+      }
+      return
+    }
   }
 
   /** 找出所有容纳会话行的列表容器（分组的 groupSection / 平铺的 flatList）。 */
@@ -367,73 +334,15 @@ class PinController {
     for (const el of desired) container.insertBefore(el, marker)
     marker.remove()
   }
-
-  /** 解析（并缓存）工作区视图 store 实例；拿不到返回 null。 */
-  private resolveStore(): HestiaViewStoreInstance | null {
-    if (this.storeInstance !== null) return this.storeInstance
-    this.storeInstance = findStoreInstance(this.slots)
-    return this.storeInstance
-  }
-
-  /**
-   * 把「置顶优先」顺序写回工作区视图 store（`sessionOrderByAccount`），使 React 渲染
-   * （含折叠时只渲染前 5 条的可见切片）也按置顶优先。仅当顺序确实变化时写入，且
-   * 同步各会话 `updatedAt`，避免 store 的「最近更新」排序效应立刻抢回顺序。
-   */
-  private syncStoreOrder(list: HestiaSessionListState): void {
-    const workspaceList = this.workspaces?.list.getSnapshot()
-    if (workspaceList === undefined) return
-    const store = this.resolveStore()
-    if (store === null) return
-    if (typeof store.store?.update !== 'function') return
-
-    const state = store.getSnapshot()
-    const orderByAccount = state.sessionOrderByAccount ?? {}
-
-    // 归组：每个工作区 + 未分组桶（accountKey 为空串）。
-    const accounted = new Set<string>()
-    const accounts: Array<{ key: string; sessionIds: string[] }> = []
-    for (const ws of workspaceList.items) {
-      const sessionIds = ws.sessionIds ?? []
-      for (const id of sessionIds) accounted.add(id)
-      accounts.push({ key: ws.workspaceId, sessionIds: [...sessionIds] })
-    }
-    const ungrouped = list.ids.filter((id) => list.byId[id] !== undefined && !accounted.has(id))
-    if (ungrouped.length > 0) accounts.push({ key: '', sessionIds: ungrouped })
-
-    for (const account of accounts) {
-      if (account.sessionIds.length === 0) continue
-      const stored = orderByAccount[account.key] ?? []
-      const fullOrder = reconcileOrder(account.sessionIds, stored)
-      const pinned = fullOrder.filter((id) => this.pinned.has(id))
-      if (pinned.length === 0) continue
-      const desired = pinned.concat(fullOrder.filter((id) => !this.pinned.has(id)))
-      if (desired.every((id, i) => fullOrder[i] === id)) continue
-
-      const updatedAt: Record<string, number> = {}
-      for (const id of account.sessionIds) {
-        const summary = list.byId[id]
-        if (summary !== undefined) updatedAt[id] = summary.updatedAt
-      }
-
-      store.store.update((draft) => {
-        draft.sessionOrderByAccount = draft.sessionOrderByAccount ?? {}
-        draft.sessionUpdatedAtByAccount = draft.sessionUpdatedAtByAccount ?? {}
-        draft.sessionOrderByAccount[account.key] = desired
-        draft.sessionUpdatedAtByAccount[account.key] = updatedAt
-      })
-    }
-  }
 }
 
-/** 装配入口：订阅 sessions.list + 观察 DOM，注入置顶能力；并把置顶顺序同步到工作区视图 store。 */
+/** 装配入口：订阅 sessions.list + 观察 DOM，注入置顶能力（DOM 重排 + 官方 insertSessionBefore 持久排序）。 */
 export function initSessionPin(ctx: ClientContext): void {
   if (typeof document === 'undefined') return
   const sessions = ctx.get('sessions') as HestiaSessionsService | undefined
   if (sessions === undefined) return
   const workspaces = ctx.get('workspaces') as HestiaWorkspacesService | undefined
-  const slots = ctx.get('slots') as HestiaSlotsService | undefined
-  const controller = new PinController(sessions, workspaces, slots)
+  const controller = new PinController(sessions, workspaces)
   ctx.effect(() => {
     controller.start()
     return () => controller.dispose()

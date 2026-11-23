@@ -1,29 +1,10 @@
 /**
- * dsh-hestia 浏览器半：外观调节（宽度 / 字号 / 皮肤）+ 番茄时钟 + session 置顶/pin + 标识颜色 + 按颜色分组 + 悬停 token 用量 + 会话导航（上箭头 / 时间轴）。
- * 功能按模块拆分在 appearance/、pomodoro/、pin/、color/、group/、usage/、nav/ 下，本文件只做装配：
+ * dsh-hestia 浏览器半：外观调节（宽度 / 字号 / 皮肤）+ 番茄时钟 + session 置顶/pin + 标识颜色 + 会话标签 + 按标签排序 + 按颜色分组 + 悬停 token 用量 + 会话导航（上箭头 / 时间轴）。
+ * 功能按模块拆分在 appearance/、pomodoro/、pin/、color/、label/、group/、usage/、nav/ 下，本文件只做装配：
  * 注入全局 CSS、注册皮肤、挂载两个 slot（外观入口 / 番茄球），并启动列表增强与会话导航。
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-// type-only：拉取 ui-conversation 的 SlotMap merge（让 slots.register 认识 conversation.* 键）
-import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ClientContext } from './context'
 import * as React from 'react'
-
-// 声明 shell 的 theme/change 事件（由 dsh-client-ui-theme 提供），让 ctx.on('theme/change') 类型正确。
-declare module '@deepseek-ai/cordis' {
-  interface Events {
-    'theme/change'(snapshot: unknown): void
-  }
-}
-
-// 声明 shell.overlay slot（由 dsh-client-ui-layout 提供，本包 devDeps 未含该包），让 slots.register('shell.overlay') 类型正确。
-declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface SlotMap {
-    'shell.overlay': {
-      kind: 'list'
-      scope: 'root'
-    }
-  }
-}
 
 import type { HestiaThemeService } from './theme'
 import { CSS } from './styles'
@@ -32,12 +13,14 @@ import { initSkins } from './appearance/skin'
 import { PomodoroBall } from './pomodoro'
 import { initSessionPin } from './pin'
 import { initColorMark } from './color'
+import { initSessionLabels } from './label'
+import { initLabelSort } from './label/sort'
 import { initColorGrouping } from './group'
 import { initSessionUsage } from './usage'
 import { initConversationNav } from './nav'
 
-/** 需要的客户端服务：slots。 */
-export const inject: string[] = ['slots']
+/** 需要的客户端服务：apply 前必须就绪，否则 ctx.get 拿不到服务、相关功能（皮肤/置顶/标识颜色/分组/用量）会静默失效。 */
+export const inject: string[] = ['slots', 'theme', 'sessions', 'workspaces']
 
 /** 浏览器插件入口：注入样式、注册皮肤、挂载外观面板 + 番茄钟，并启动列表增强（置顶 / 标识颜色 / 悬停 token 用量）。 */
 export function apply(ctx: ClientContext): void {
@@ -71,6 +54,12 @@ export function apply(ctx: ClientContext): void {
 
   // session / 工作区 标识颜色：订阅 sessions.list + workspaces.list，注入左侧色条 + 颜色按钮/调色板。
   initColorMark(ctx)
+
+  // 会话标签：行内「颜色点 +【文案】」+ hover 标签按钮 + 编辑弹层（标签颜色属于标签本身）。
+  initSessionLabels(ctx)
+
+  // 按标签排序：在「视图选项 → 排序方式」里注入「按标签」，工作区内二级排序（host 顺序写回）。
+  initLabelSort(ctx)
 
   // 按标识颜色分组：在「视图选项 → 分组方式」里注入「按标识颜色」，按会话颜色归组。
   initColorGrouping(ctx)

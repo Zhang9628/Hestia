@@ -17,7 +17,7 @@
  * - 悬停卡标题文本 = session.displayTitle（非 blank），与列表行标题一致，故沿用
  *   pin/color 的「标题 → sessionId」映射定位（仅标题唯一时匹配，标题冲突则跳过）。
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext } from '../context'
 
 /** tokenUsage 投影的最小结构视图（运行时由 host token-meter 推送）。 */
 interface HestiaTokenUsage {
