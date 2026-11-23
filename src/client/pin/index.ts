@@ -25,6 +25,7 @@
  */
 import type { ClientContext } from '../context'
 import { colorGroupingActive } from '../group/state'
+import { labelSortActive } from '../label/state'
 
 /** 会话列表快照的最小结构视图（运行时由 shell 的 sessions 服务提供）。 */
 interface HestiaSessionSummary {
@@ -207,6 +208,8 @@ class PinController {
 
     // 按标识颜色分组开启时，重排交给 group 模块（否则两者互相打乱对方顺序）。
     if (colorGroupingActive()) return
+    // 按标签排序开启时，重排交给 label/sort（它内部把「置顶优先」算进比较键）。
+    if (labelSortActive()) return
 
     this.reorderContainers()
   }
@@ -266,6 +269,8 @@ class PinController {
    * 置顶则追加到末尾。未分组会话没有 workspaceId，静默跳过（退回 DOM 重排）。
    */
   private syncHostOrder(id: string, pinned: boolean): void {
+    // 按标签排序接管顺序时不要写 host，否则两个模块会把顺序来回改。
+    if (labelSortActive()) return
     const ws = this.workspaces
     if (ws === undefined) return
     for (const item of ws.list.getSnapshot().items) {

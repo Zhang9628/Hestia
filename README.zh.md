@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/hestia-logo.png" width="360" alt="Hestia logo" />
   <h1>Hestia · DeepSeek Harness 会话增强插件</h1>
-  <p><strong>让你的 AI 会话界面更顺手、更舒适。</strong><br>对话宽度 · 字体 · 皮肤 · 壁纸 · 番茄时钟 · 会话导航</p>
+  <p><strong>让你的 AI 会话界面更顺手、更舒适。</strong><br>对话宽度 · 字体 · 皮肤 · 壁纸 · 番茄时钟 · 标签 · 会话导航</p>
   <p><strong>简体中文</strong> · <a href="README.md">English</a></p>
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-d97706" alt="MIT license" /></a>
@@ -58,6 +58,21 @@ Hestia 是一个独立仓库的 [DSH](https://github.com/deepseek-ai/deepseek-ha
 - 悬停会话行 / 工作区（文件夹）行出现颜色按钮，点击弹出调色板（8 种预设色），点色块即给该行加上左侧色条
 - 色条常显；再次打开调色板点「清除」即可移除颜色
 - 颜色映射记忆在本地，重启后仍生效
+
+### 会话标签
+
+- 悬停会话行，行尾出现标签按钮（与置顶 / 颜色按钮并排），点击弹出编辑面板
+- 输入框写标签文案，点色块给**这个标签**选颜色 —— 颜色属于标签本身，同名标签在所有会话里同色，改一次颜色会同步所有使用它的会话
+- 保存后会话行显示为「标签颜色点 +【标签文案】+ 会话原名」，时间与右侧操作按钮位置不变；无标签的行保持原样
+- 「已有标签」区域可直接复用历史标签，点一下填入文案
+- 标签文案（`hestia-session-labels`）与标签颜色（`hestia-label-colors`）都记忆在本地，重启后仍生效
+
+### 按标签排序
+
+- 「视图选项 → 排序方式」里新增「按标签」：开启后工作区内的会话按标签做二级排序
+- 排序键：新会话（新建占位行）→ 置顶 → 有标签 → 标签文案升序（英文 / 数字在前，中文按拼音）→ 无标签沉底并保持原有顺序
+- 开启时会把期望顺序写回 host（否则折叠状态只渲染前 5 条时顺序不生效），并把开启前的顺序备份到本地；关闭「按标签」后按备份还原
+- 与「按标识颜色分组」互斥（对方接管列表重排时自动让位）；开启期间置顶按钮照常可用，置顶优先由本功能保证
 
 ### 按标识颜色分组
 
@@ -145,6 +160,13 @@ src/
     │   ├── index.ts          ColorGroupingController（视图选项菜单注入 / 颜色归组）
     │   ├── state.ts          跨模块开关（让 pin 跳过重排）
     │   └── styles.ts         dshgroup-* CSS
+    ├── label/                会话标签 + 按标签排序
+    │   ├── index.ts          LabelController（行内颜色点 /【文案】/ 标签按钮 / 编辑弹层）
+    │   ├── sort.ts           LabelSortController（排序菜单注入 / DOM 重排 / host 顺序写回）
+    │   ├── store.ts          数据层（标签→颜色、会话→标签、排序比较键）
+    │   ├── rows.ts           会话行 DOM / 快照最小视图
+    │   ├── state.ts          跨模块开关（让 pin 跳过重排）
+    │   └── styles.ts         dshlabel-* CSS
     ├── usage/                session 悬停 token 用量
     │   ├── index.ts          UsageController（读 tokenUsage 投影 / 注入悬停卡）
     │   └── styles.ts         dshusage-* CSS
